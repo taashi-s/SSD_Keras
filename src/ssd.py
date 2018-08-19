@@ -6,10 +6,11 @@ import keras.backend as KB
 
 from layers import SameFilterSizeConvBlock, UpFilterSizeConvBlock, DilationConvBlock
 from layers import RegionBlock, MergeBlock, MergeBlock
+from multibox_loss import MultiboxLoss
 
 
 class SSD(object):
-    def __init__(self, input_shape, class_num=1):
+    def __init__(self, input_shape, class_num=3):
         self.__input_shape = input_shape
         self.__class_num = class_num
 
@@ -43,8 +44,7 @@ class SSD(object):
 
 
     def comple_model(self):
-        # TODO : loss function
-        self.__model.compile(optimizer=Adam(lr=0.01), loss=[])
+        self.__model.compile(optimizer=Adam(lr=0.01), loss=MultiboxLoss(self.__class_num).loss)
 
 
     def get_model(self, with_comple=False):
