@@ -1,4 +1,4 @@
-# traial UNet (with Keras)
+# traial UNet (with Keras 2.x)
 
 ## Current problem
 ```
