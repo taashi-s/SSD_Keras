@@ -28,12 +28,14 @@ class SSD(object):
 
         pool = GlobalAveragePooling2D()(conv9)
 
-        region_1 = RegionBlock(class_num, priors=3, with_normalize=True)(conv4)
-        region_2 = RegionBlock(class_num)(conv6)
-        region_3 = RegionBlock(class_num)(conv7)
-        region_4 = RegionBlock(class_num)(conv8)
-        region_5 = RegionBlock(class_num)(conv9)
-        region_6 = RegionBlock(class_num, use_dense=True)(pool)
+        region_1 = RegionBlock(class_num, input_shape, 30
+                               , aspect_ratios=[2], priors=3, normalize_scale=20)(conv4)
+        region_2 = RegionBlock(class_num, input_shape, 60, max_size=114)(conv6)
+        region_3 = RegionBlock(class_num, input_shape, 114, max_size=168)(conv7)
+        region_4 = RegionBlock(class_num, input_shape, 168, max_size=222)(conv8)
+        region_5 = RegionBlock(class_num, input_shape, 222, max_size=276)(conv9)
+        region_6 = RegionBlock(class_num, input_shape, 276, max_size=330
+                               , use_dense=True)(pool)
 
         outputs = MergeBlock()([region_1, region_2, region_3, region_4, region_5, region_6])
 
