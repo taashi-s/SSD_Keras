@@ -18,7 +18,7 @@ class SameFilterSizeConvBlock():
         if self.__with_max_pool:
            layer = MaxPooling2D(padding='same')(layer)
 
-        for _ in range(self.__conv_num):
+        for k in range(self.__conv_num):
             layer = Conv2D(self.__filters, 3, padding='same', activation='relu')(layer)
 
         return layer

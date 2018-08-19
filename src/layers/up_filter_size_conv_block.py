@@ -22,6 +22,6 @@ class UpFilterSizeConvBlock():
             padding = 'valid'
 
         filters *= 2
-        conv_2 = Conv2D(filters, 3, stride=2, padding=padding, activation='relu')(conv_1)
+        conv_2 = Conv2D(filters, 3, strides=2, padding=padding, activation='relu')(conv_1)
 
         return conv_2

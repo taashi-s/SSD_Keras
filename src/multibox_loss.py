@@ -24,7 +24,7 @@ class MultiboxLoss(object):
 
         negative_num_batch = self.__calc_negative_num_batch(box_num, positive_num)
         negative_conf_loss = self.__get_negative_conf_loss(y_true, y_pred, conf_loss
-                                                           , batch_size, box_num, positive_num)
+                                                           , batch_size, box_num, negative_num_batch)
 
         total_loss = self.__get_total_loss(positive_num, positive_loc_loss, positive_conf_loss
                                            , negative_num_batch, negative_conf_loss)

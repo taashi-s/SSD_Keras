@@ -15,6 +15,7 @@ class SSD(object):
         self.__class_num = class_num
 
         inputs = Input(self.__input_shape)
+
         conv1 = SameFilterSizeConvBlock(64, with_max_pool=False)(inputs)
         conv2 = SameFilterSizeConvBlock(128)(conv1)
         conv3 = SameFilterSizeConvBlock(256, conv_num=3)(conv2)

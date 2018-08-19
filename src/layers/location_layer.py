@@ -1,4 +1,4 @@
-from keras.layers import Conv2D, Flatten, Dense
+from keras.layers import Conv2D, Flatten, Dense, Reshape
 
 
 class LocationLayer():
@@ -22,4 +22,6 @@ class LocationLayer():
     def __location_layer_conv(self, inputs):
         conv = Conv2D(self.__priors * 4, 3, padding='same')(inputs)
         location = Flatten()(conv)
-        return location
+        _, h, w, c = conv.get_shape()
+        location_res = Reshape((h * w * c,))(location)
+        return location_res

@@ -1,4 +1,3 @@
-import keras.backend as KB
 from keras.layers import Concatenate, Reshape, Activation
 
 
@@ -22,7 +21,7 @@ class MergeBlock():
             pbox_layers.append(pbox)
 
         merge_loc = Concatenate(axis=1)(loc_layers)
-        box_num = KB.shape(merge_loc)[-1] // 4
+        box_num = merge_loc.get_shape().as_list()[-1] // 4
         locs = Reshape((box_num, 4))(merge_loc)
 
         merge_conf = Concatenate(axis=1)(conf_layers)

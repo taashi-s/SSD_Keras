@@ -3,19 +3,22 @@ import numpy as np
 from matplotlib import pyplot
 import keras.callbacks as KC
 import math
+import pickle
+import cv2
 
 from ssd import SSD
 from images_loader import load_images, save_images
 from option_parser import get_option
 from data_generator import DataGenerator
 from history_checkpoint_callback import HistoryCheckpoint
+from utils import BBoxUtility
 
 
 CLASS_NUM = 4
 INPUT_IMAGE_SHAPE = (300, 300, 3)
-BATCH_SIZE = 45
+BATCH_SIZE = 10
 EPOCHS = 1000
-GPU_NUM = 1 # 4
+GPU_NUM = None # 4
 
 INTERNAL_FILTER = 64
 
@@ -30,6 +33,8 @@ DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
 
 File_MODEL = 'segmentation_model.hdf5'
+File_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
+File_GT_PKL = 'gt_pascal.pkl'
 
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
@@ -65,30 +70,45 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         print('... loaded') 
 
     print('data generator creating ... ', end='', flush=True)
-    train_generator = DataGenerator(DIR_TRAIN_INPUTS, DIR_TRAIN_TEACHERS, INPUT_IMAGE_SHAPE)
-    valid_generator = DataGenerator(DIR_VALID_INPUTS, DIR_VALID_TEACHERS, INPUT_IMAGE_SHAPE)
+    priors = pickle.load(open(File_PRIORS_PKL, 'rb'))
+    bbox_util = BBoxUtility(CLASS_NUM, priors)
+
+    gt = pickle.load(open(File_GT_PKL, 'rb'))
+    keys = sorted(gt.keys())
+    num_train = int(round(0.8 * len(keys)))
+    train_keys = keys[:num_train]
+    val_keys = keys[num_train:]
+    num_val = len(val_keys)
+
+    path_prefix = '../../frames/'
+    gen = DataGenerator(gt, bbox_util, BATCH_SIZE, '../../frames/'
+                        , train_keys, val_keys
+                        , (INPUT_IMAGE_SHAPE[0], INPUT_IMAGE_SHAPE[1]), do_crop=False)
+
+
     print('... created')
 
     if with_generator:
-        train_data_num = train_generator.data_size()
-        valid_data_num = valid_generator.data_size()
-        history = model.fit_generator(train_generator.generator(batch_size=BATCH_SIZE)
-                                      , steps_per_epoch=math.ceil(train_data_num / BATCH_SIZE)
+        #train_data_num = train_generator.data_size()
+        #valid_data_num = valid_generator.data_size()
+        history = model.fit_generator(gen.generate(True)
+                                      , steps_per_epoch=gen.train_batches
                                       , epochs=EPOCHS
                                       , verbose=1
-                                      , use_multiprocessing=True
+                                      #, use_multiprocessing=True
+                                      , use_multiprocessing=False
                                       , callbacks=callbacks
-                                      , validation_data=valid_generator.generator(batch_size=BATCH_SIZE)
-                                      , validation_steps=math.ceil(valid_data_num / BATCH_SIZE)
+                                      , validation_data=gen.generate(False)
+                                      , validation_steps=gen.val_batches
                                      )
     else:
         print('data generateing ... ') #, end='', flush=True)
-        train_inputs, train_teachers = train_generator.generate_data()
-        valid_data = valid_generator.generate_data()
+        #train_inputs, train_teachers = train_generator.generate_data()
+        #valid_data = valid_generator.generate_data()
         print('... generated')
-        history = model.fit(train_inputs, train_teachers, batch_size=BATCH_SIZE, epochs=EPOCHS
-                            , validation_data=valid_data
-                            , shuffle=True, verbose=1, callbacks=callbacks)
+        #history = model.fit(train_inputs, train_teachers, batch_size=BATCH_SIZE, epochs=EPOCHS
+        #                    , validation_data=valid_data
+        #                    , shuffle=True, verbose=1, callbacks=callbacks)
     print('model saveing ... ', end='', flush=True)
     model.save_weights(model_filename)
     print('... saved')
@@ -130,7 +150,7 @@ def predict(input_dir, gpu_num=None):
 
 
 def __outputs_to_image_data(images, preds):
-    # TODO : Update
+    # TODO : Refactoring
     image_data = []
     for i, img in enumerate(images):
         # Parse the outputs.
@@ -151,10 +171,10 @@ def __outputs_to_image_data(images, preds):
         top_xmax = det_xmax[top_indices]
         top_ymax = det_ymax[top_indices]
 
-        colors = plt.cm.hsv(np.linspace(0, 1, 4)).tolist()
-
-        plt.imshow(img / 255.)
-        currentAxis = plt.gca()
+        #colors = plt.cm.hsv(np.linspace(0, 1, 4)).tolist()
+        col = [0, 126, 252]
+        if top_conf.shape[0] > 1:
+            col = [i for i in range(255)[::(255 // top_conf.shape[0] - 1)]]
 
         for i in range(top_conf.shape[0]):
             xmin = int(round(top_xmin[i] * img.shape[1]))
@@ -163,13 +183,14 @@ def __outputs_to_image_data(images, preds):
             ymax = int(round(top_ymax[i] * img.shape[0]))
             score = top_conf[i]
             label = int(top_label_indices[i])
-            display_txt = '{:0.2f}, {}'.format(score, label)
+            caption = '{:0.2f}, {}'.format(score, label)
             coords = (xmin, ymin), xmax-xmin+1, ymax-ymin+1
-            color = colors[label]
-            currentAxis.add_patch(plt.Rectangle(*coords, fill=False, edgecolor=color, linewidth=2))
-            currentAxis.text(xmin, ymin, display_txt, bbox={'facecolor':color, 'alpha':0.5})
-        
-        plt.show()
+            reg_lt = (xmin, ymax)
+            reg_rb = (xmax, ymin)
+            color = (col[i], col[::-1][i], 0) # colors[label]
+            cv2.putText(img, caption, reg_lt, cv2.FONT_HERSHEY_PLAIN, 1, color)
+            cv2.rectangle(img, reg_lt, reg_rb, color, 2)
+
     return image_data
 
 
@@ -182,8 +203,8 @@ if __name__ == '__main__':
     if not(os.path.exists(DIR_OUTPUTS)):
         os.mkdir(DIR_OUTPUTS)
 
-    train(gpu_num=GPU_NUM, with_generator=False, load_model=False)
-    #train(gpu_num=GPU_NUM, with_generator=True, load_model=False)
+    #train(gpu_num=GPU_NUM, with_generator=False, load_model=False)
+    train(gpu_num=GPU_NUM, with_generator=True, load_model=False)
 
     #predict(DIR_INPUTS, gpu_num=GPU_NUM)
     #predict(DIR_PREDICTS, gpu_num=GPU_NUM)
