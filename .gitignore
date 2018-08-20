@@ -2,3 +2,5 @@
 VOCdevkit/
 *.tar
 .vscode/
+*__pycache__/
+*logs/
