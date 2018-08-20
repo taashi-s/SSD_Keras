@@ -46,9 +46,9 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         network.plot_model_summary('../model_plot.png')
         network.show_model_summary()
     if isinstance(gpu_num, int):
-        model = network.get_parallel_model(gpu_num, with_comple=True)
+        model = network.get_parallel_model(gpu_num, with_compile=True)
     else:
-        model = network.get_model(with_comple=True)
+        model = network.get_model(with_compile=True)
 
     model_filename = os.path.join(DIR_MODEL, File_MODEL)
     callbacks = [ KC.TensorBoard()
@@ -67,7 +67,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
     if load_model:
         print('loading weghts ... ', end='', flush=True)
         model.load_weights(model_filename)
-        print('... loaded') 
+        print('... loaded')
 
     print('data generator creating ... ', end='', flush=True)
     priors = pickle.load(open(File_PRIORS_PKL, 'rb'))

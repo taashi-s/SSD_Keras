@@ -44,19 +44,19 @@ class SSD(object):
         self.__model = Model(inputs=[inputs], outputs=[outputs])
 
 
-    def comple_model(self):
+    def compile_model(self):
         self.__model.compile(optimizer=Adam(lr=0.01), loss=MultiboxLoss(self.__class_num).loss)
 
 
-    def get_model(self, with_comple=False):
-        if with_comple:
-            self.comple_model()
+    def get_model(self, with_compile=False):
+        if with_compile:
+            self.compile_model()
         return self.__model
 
 
-    def get_parallel_model(self, gpu_num, with_comple=False):
+    def get_parallel_model(self, gpu_num, with_compile=False):
         self.__model = multi_gpu_model(self.__model, gpus=gpu_num)
-        return self.get_model(with_comple)
+        return self.get_model(with_compile)
 
 
     def show_model_summary(self):
