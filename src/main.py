@@ -27,14 +27,16 @@ DIR_MODEL = os.path.join(DIR_BASE, 'model')
 DIR_TRAIN_INPUTS = os.path.join(DIR_BASE, 'inputs')
 DIR_TRAIN_TEACHERS = os.path.join(DIR_BASE, 'teachers')
 DIR_VALID_INPUTS = os.path.join(DIR_BASE, 'valid_inputs')
-DIR_VALID_TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
+TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
 DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
 DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
+DIR_PKL = os.path.join(DIR_BASE, 'PKL')
+DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages')
 
-File_MODEL = 'segmentation_model.hdf5'
-File_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
-File_GT_PKL = 'gt_pascal.pkl'
+FILE_MODEL = 'segmentation_model.hdf5'
+FILE_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
+FILE_GT_PKL = 'voc_2012.pkl'
 
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
@@ -50,7 +52,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
     else:
         model = network.get_model(with_compile=True)
 
-    model_filename = os.path.join(DIR_MODEL, File_MODEL)
+    model_filename = os.path.join(DIR_MODEL, FILE_MODEL)
     callbacks = [ KC.TensorBoard()
                 , HistoryCheckpoint(filepath='LearningCurve_{history}.png'
                                     , verbose=1
@@ -70,18 +72,16 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         print('... loaded')
 
     print('data generator creating ... ', end='', flush=True)
-    priors = pickle.load(open(File_PRIORS_PKL, 'rb'))
+    priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
     bbox_util = BBoxUtility(CLASS_NUM, priors)
 
-    gt = pickle.load(open(File_GT_PKL, 'rb'))
-    keys = sorted(gt.keys())
+    ground_truth = pickle.load(open(os.path.join(DIR_PKL, FILE_GT_PKL), 'rb'))
+    keys = sorted(ground_truth.keys())
     num_train = int(round(0.8 * len(keys)))
     train_keys = keys[:num_train]
     val_keys = keys[num_train:]
-    num_val = len(val_keys)
 
-    path_prefix = '../../frames/'
-    gen = DataGenerator(gt, bbox_util, BATCH_SIZE, '../../frames/'
+    gen = DataGenerator(ground_truth, bbox_util, BATCH_SIZE, DIR_INPUT_IMAGES
                         , train_keys, val_keys
                         , (INPUT_IMAGE_SHAPE[0], INPUT_IMAGE_SHAPE[1]), do_crop=False)
 
@@ -102,6 +102,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
                                       , validation_steps=gen.val_batches
                                      )
     else:
+        # TODO
         print('data generateing ... ') #, end='', flush=True)
         #train_inputs, train_teachers = train_generator.generate_data()
         #valid_data = valid_generator.generate_data()
@@ -137,7 +138,7 @@ def predict(input_dir, gpu_num=None):
         model = network.get_model()
 #    model.summary()
     print('loading weghts ...')
-    model.load_weights(os.path.join(DIR_MODEL, File_MODEL))
+    model.load_weights(os.path.join(DIR_MODEL, FILE_MODEL))
     print('... loaded')
     print('predicting ...')
     preds = model.predict(inputs, BATCH_SIZE)
