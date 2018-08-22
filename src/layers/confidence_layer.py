@@ -1,4 +1,4 @@
-from keras.layers import Conv2D, Flatten, Dense
+from keras.layers import Conv2D, Flatten, Dense, Reshape
 
 
 class ConfidenceLayer():
@@ -16,11 +16,12 @@ class ConfidenceLayer():
 
 
     def __confidence_layer_dense(self, inputs):
-        location = Dense(self.__priors * self.__class_num)(inputs)
-        return location
+        confidence = Dense(self.__priors * self.__class_num)(inputs)
+        confidence_res = Reshape((-1, self.__class_num))(confidence)
+        return confidence_res
 
 
     def __confidence_layer_conv(self, inputs):
         conv = Conv2D(self.__priors * self.__class_num, 3, padding='same')(inputs)
-        location = Flatten()(conv)
-        return location
+        confidence_res = Reshape((-1, self.__class_num))(conv)
+        return confidence_res

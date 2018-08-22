@@ -2,8 +2,8 @@ from keras.layers import Concatenate, Reshape, Activation
 
 
 class MergeBlock():
-    def __init__(self):
-        pass
+    def __init__(self, class_num=21):
+        self.__class_num = class_num
 
 
     def __call__(self, inputs):
@@ -20,13 +20,10 @@ class MergeBlock():
             conf_layers.append(conf)
             pbox_layers.append(pbox)
 
-        merge_loc = Concatenate(axis=1)(loc_layers)
-        box_num = merge_loc.get_shape().as_list()[-1] // 4
-        locs = Reshape((box_num, 4))(merge_loc)
+        locs = Concatenate(axis=1)(loc_layers)
 
         merge_conf = Concatenate(axis=1)(conf_layers)
-        reshape_conf = Reshape((box_num, 4))(merge_conf)
-        confs = Activation('softmax')(reshape_conf)
+        confs = Activation('softmax')(merge_conf)
 
         pboxs = Concatenate(axis=1)(pbox_layers)
 

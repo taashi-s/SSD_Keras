@@ -10,9 +10,10 @@ from multibox_loss import MultiboxLoss
 
 
 class SSD(object):
-    def __init__(self, input_shape, class_num=3):
+    def __init__(self, input_shape, batch_size, class_num=21):
         self.__input_shape = input_shape
         self.__class_num = class_num
+        self.__batch_size = batch_size
 
         inputs = Input(self.__input_shape)
 
@@ -39,13 +40,14 @@ class SSD(object):
         region_6 = RegionBlock(class_num, input_shape, 276, max_size=330
                                , use_dense=True)(pool)
 
-        outputs = MergeBlock()([region_1, region_2, region_3, region_4, region_5, region_6])
+        layers = [region_1, region_2, region_3, region_4, region_5, region_6]
+        outputs = MergeBlock(class_num=class_num)(layers)
 
         self.__model = Model(inputs=[inputs], outputs=[outputs])
 
 
     def compile_model(self):
-        self.__model.compile(optimizer=Adam(lr=0.01), loss=MultiboxLoss(self.__class_num).loss)
+        self.__model.compile(optimizer=Adam(lr=0.001), loss=MultiboxLoss(self.__class_num, self.__batch_size).loss)
 
 
     def get_model(self, with_compile=False):

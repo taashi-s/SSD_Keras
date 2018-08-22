@@ -3,20 +3,21 @@ import tensorflow as tf
 
 
 class MultiboxLoss(object):
-    def __init__(self, num_classes, alpha=1.0, negative_ratio=2.0
+    def __init__(self, num_classes, batch_size, alpha=1.0, negative_ratio=2.0
                  , negatives_for_hard=100.0):
         self.__num_classes = num_classes
         self.__alpha = alpha
         self.__negative_ratio = negative_ratio
         self.__negatives_for_hard = negatives_for_hard
+        self.__batch_size = batch_size
 
 
     def loss(self, y_true, y_pred):
-        batch_size = KB.shape(y_true)[0]
+        batch_size = self.__batch_size
         box_num = KB.cast(KB.shape(y_true)[1], 'float32')
 
-        loc_loss = self.__smooth_loss(y_true[:, :, :4], y_pred[:, :, :4])
         conf_loss = self.__softmax_loss(y_true[:, :, 4:-8], y_pred[:, :, 4:-8])
+        loc_loss = self.__smooth_loss(y_true[:, :, :4], y_pred[:, :, :4])
 
         positive_num = tf.reduce_sum(y_true[:, :, -8], axis=-1)
         positive_loc_loss = tf.reduce_sum(loc_loss * y_true[:, :, -8], axis=1)
@@ -32,10 +33,14 @@ class MultiboxLoss(object):
 
 
     def __smooth_loss(self, y_true, y_pred):
-        abs_loss = tf.abs(y_true - y_pred)
-        sq_loss = 0.5 * (y_true - y_pred)**2
+        _, shape_a, shape_b = y_pred.get_shape().as_list()
+        cons = tf.constant(1.0, shape=(self.__batch_size, shape_a, shape_b))
+        diff = (y_true - y_pred) 
+        diff = tf.where(tf.is_inf(diff), cons, diff)
+        abs_loss = tf.abs(diff)
+        sq_loss = 0.5 * (diff)**2
         l1_loss = tf.where(tf.less(abs_loss, 1.0), sq_loss, abs_loss - 0.5)
-        return tf.reduce_sum(l1_loss, -1)
+        return tf.reduce_sum(l1_loss, axis=-1)
 
 
     def __softmax_loss(self, y_true, y_pred):

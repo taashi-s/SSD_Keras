@@ -16,12 +16,11 @@ class LocationLayer():
 
     def __location_layer_dense(self, inputs):
         location = Dense(self.__priors * 4)(inputs)
-        return location
+        location_res = Reshape((-1, 4))(location)
+        return location_res
 
 
     def __location_layer_conv(self, inputs):
         conv = Conv2D(self.__priors * 4, 3, padding='same')(inputs)
-        location = Flatten()(conv)
-        _, h, w, c = conv.get_shape()
-        location_res = Reshape((h * w * c,))(location)
+        location_res = Reshape((-1, 4))(conv)
         return location_res

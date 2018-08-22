@@ -14,13 +14,11 @@ from history_checkpoint_callback import HistoryCheckpoint
 from utils import BBoxUtility
 
 
-CLASS_NUM = 4
+CLASS_NUM = 21
 INPUT_IMAGE_SHAPE = (300, 300, 3)
-BATCH_SIZE = 10
+BATCH_SIZE = 120
 EPOCHS = 1000
-GPU_NUM = None # 4
-
-INTERNAL_FILTER = 64
+GPU_NUM = 6
 
 DIR_BASE = os.path.join('.', '..')
 DIR_MODEL = os.path.join(DIR_BASE, 'model')
@@ -32,7 +30,7 @@ DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
 DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
 DIR_PKL = os.path.join(DIR_BASE, 'PKL')
-DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages')
+DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages', '')
 
 FILE_MODEL = 'segmentation_model.hdf5'
 FILE_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
@@ -41,7 +39,7 @@ FILE_GT_PKL = 'voc_2012.pkl'
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
     print('network creating ... ', end='', flush=True)
-    network = SSD(INPUT_IMAGE_SHAPE, class_num=CLASS_NUM)
+    network = SSD(INPUT_IMAGE_SHAPE, BATCH_SIZE, class_num=CLASS_NUM)
     print('... created')
 
     if show_info:
@@ -89,17 +87,19 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
     print('... created')
 
     if with_generator:
+        print('##### gen.train_batches : ', gen.train_batches)
+        print('##### gen.val_batches : ', gen.val_batches)
         #train_data_num = train_generator.data_size()
         #valid_data_num = valid_generator.data_size()
         history = model.fit_generator(gen.generate(True)
-                                      , steps_per_epoch=gen.train_batches
+                                      , steps_per_epoch= 100 #200 #gen.train_batches
                                       , epochs=EPOCHS
                                       , verbose=1
-                                      #, use_multiprocessing=True
-                                      , use_multiprocessing=False
+                                      , use_multiprocessing=True
+                                      #, use_multiprocessing=False
                                       , callbacks=callbacks
                                       , validation_data=gen.generate(False)
-                                      , validation_steps=gen.val_batches
+                                      , validation_steps= 20 #50 #gen.val_batches
                                      )
     else:
         # TODO

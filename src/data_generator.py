@@ -135,7 +135,7 @@ class DataGenerator(object):
                 new_targets.append(box)
         new_targets = np.asarray(new_targets).reshape(-1, targets.shape[1])
         return img, new_targets
-    
+
     def generate(self, train=True):
         while True:
             if train:
