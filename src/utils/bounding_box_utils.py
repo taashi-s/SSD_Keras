@@ -2,6 +2,7 @@
 
 import numpy as np
 import tensorflow as tf
+import keras.backend as KB
 
 
 # TODO : Refactoring
@@ -125,9 +126,13 @@ class BBoxUtility(object):
                 if len(c_confs[c_confs_m]) > 0:
                     boxes_to_process = decode_bbox[c_confs_m]
                     confs_to_process = c_confs[c_confs_m]
-                    feed_dict = {self.boxes: boxes_to_process,
-                                 self.scores: confs_to_process}
-                    idx = self.sess.run(self.nms, feed_dict=feed_dict)
+                    #feed_dict = {self.boxes: boxes_to_process,
+                    #             self.scores: confs_to_process}
+                    #idx = self.sess.run(self.nms, feed_dict=feed_dict)
+                    idx_t = tf.image.non_max_suppression(boxes_to_process, confs_to_process
+                                                        , self._top_k
+                                                        , iou_threshold=self._nms_thresh)
+                    idx = KB.get_value(idx_t)
                     good_boxes = boxes_to_process[idx]
                     confs = confs_to_process[idx][:, None]
                     labels = c * np.ones((len(idx), 1))

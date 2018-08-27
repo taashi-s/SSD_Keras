@@ -14,8 +14,8 @@ def load_images(dir_name, image_shape, with_normalize=True):
     for i, file in enumerate(files):
         img = load_image(file, image_shape, with_normalize=with_normalize)
         images.append(img)
-        if i % 500 == 0:
-            print('load_images loaded ', i)
+        if (i + 1) % 500 == 0 or (i + 1) == len(files):
+            print('load_images loaded : ', i + 1)
     return (files, np.array(images, dtype=np.float32))
 
 
@@ -49,22 +49,16 @@ def load_image(file_name, image_shape, with_normalize=True, is_binary=False):
     return dist_img
 
 
-def save_images(dir_name, image_data_list, file_name_list):
+def save_images(dir_name, image_data_list, file_name_list, with_unnormalize=True):
     for _, (image_data, file_name) in enumerate(zip(image_data_list, file_name_list)):
         name = os.path.basename(file_name)
         #(w, h, _) = image_data.shape
         #image_data = np.reshape(image_data, (w, h))
         #distImg = Image.fromarray(image_data * 255)
         #distImg = distImg.convert('RGB')
-        ths = [10, 20, 50, 100, 127, 150, 180, 200, 220, 250]
         name_base, ext = os.path.splitext(name)
-        save_path = os.path.join(dir_name, name_base + '_orign' + ext)
-        save_image(image_data, save_path, with_unnormalize=True)
-        for th in ths:
-            save_path = os.path.join(dir_name, name_base + ('_th%03d' % th) + ext)
-            #distImg.save(save_path, "png")
-            #save_image(image_data, save_path, with_unnormalize=True)
-            save_image(image_data, save_path, with_unnormalize=True, binary_threshold=th)
+        save_path = os.path.join(dir_name, name_base + ext)
+        save_image(image_data, save_path, with_unnormalize=with_unnormalize)
 
 def save_image(image_data, save_path, with_unnormalize=True, binary_threshold=None):
     if with_unnormalize:

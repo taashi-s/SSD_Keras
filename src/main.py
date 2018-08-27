@@ -5,6 +5,7 @@ import keras.callbacks as KC
 import math
 import pickle
 import cv2
+import random
 
 from ssd import SSD
 from images_loader import load_images, save_images
@@ -16,9 +17,9 @@ from utils import BBoxUtility
 
 CLASS_NUM = 21
 INPUT_IMAGE_SHAPE = (300, 300, 3)
-BATCH_SIZE = 120
+BATCH_SIZE = 80
 EPOCHS = 1000
-GPU_NUM = 6
+GPU_NUM = 4
 
 DIR_BASE = os.path.join('.', '..')
 DIR_MODEL = os.path.join(DIR_BASE, 'model')
@@ -75,6 +76,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
 
     ground_truth = pickle.load(open(os.path.join(DIR_PKL, FILE_GT_PKL), 'rb'))
     keys = sorted(ground_truth.keys())
+    random.shuffle(keys)
     num_train = int(round(0.8 * len(keys)))
     train_keys = keys[:num_train]
     val_keys = keys[num_train:]
@@ -92,14 +94,14 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         #train_data_num = train_generator.data_size()
         #valid_data_num = valid_generator.data_size()
         history = model.fit_generator(gen.generate(True)
-                                      , steps_per_epoch= 100 #200 #gen.train_batches
+                                      , steps_per_epoch= 200 #gen.train_batches
                                       , epochs=EPOCHS
                                       , verbose=1
                                       , use_multiprocessing=True
                                       #, use_multiprocessing=False
                                       , callbacks=callbacks
                                       , validation_data=gen.generate(False)
-                                      , validation_steps= 20 #50 #gen.val_batches
+                                      , validation_steps= 50 #gen.val_batches
                                      )
     else:
         # TODO
@@ -130,8 +132,12 @@ def save_learning_curve(history):
 
 
 def predict(input_dir, gpu_num=None):
-    (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE)
-    network = SSD(INPUT_IMAGE_SHAPE, class_num=CLASS_NUM)
+    with_norm = False 
+    (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE, with_normalize=with_norm)
+    priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
+    bbox_util = BBoxUtility(CLASS_NUM, priors)
+
+    network = SSD(INPUT_IMAGE_SHAPE, BATCH_SIZE, class_num=CLASS_NUM)
     if isinstance(gpu_num, int):
         model = network.get_parallel_model(gpu_num)
     else:
@@ -145,9 +151,20 @@ def predict(input_dir, gpu_num=None):
     print('... predicted')
 
     print('result saveing ...')
-    image_data = __outputs_to_image_data(inputs, preds)
-    save_images(DIR_OUTPUTS, image_data, file_names)
+    results = bbox_util.detection_out(preds)
+    image_data = __outputs_to_image_data(inputs, results)
+    save_images(DIR_OUTPUTS, image_data, file_names, with_unnormalize=with_norm)
     print('... finish .')
+
+
+class Pred():
+    def __init__(self, score, label, xmin, xmax, ymin, ymax):
+        self.score = score
+        self.label = label
+        self.xmin = xmin
+        self.xmax = xmax
+        self.ymin = ymin
+        self.ymax = ymax
 
 
 def __outputs_to_image_data(images, preds):
@@ -163,35 +180,54 @@ def __outputs_to_image_data(images, preds):
         det_ymax = preds[i][:, 5]
 
         # Get detections with confidence higher than 0.6.
-        top_indices = [i for i, conf in enumerate(det_conf) if conf >= 0.6]
+        #top_indices = [i for i, conf in enumerate(det_conf) if conf >= 0.6]
+        #if len(top_indices) < 1:
+        #    print('[%03d]' % i, ' top_confs is 0 (all confs is ', len(det_conf), ')')
 
-        top_conf = det_conf[top_indices]
-        top_label_indices = det_label[top_indices].tolist()
-        top_xmin = det_xmin[top_indices]
-        top_ymin = det_ymin[top_indices]
-        top_xmax = det_xmax[top_indices]
-        top_ymax = det_ymax[top_indices]
+        top_conf = det_conf #[top_indices]
+        top_label_indices = det_label.tolist() #det_label[top_indices].tolist()
+        top_xmin = det_xmin #[top_indices]
+        top_ymin = det_ymin #[top_indices]
+        top_xmax = det_xmax #[top_indices]
+        top_ymax = det_ymax #[top_indices]
 
         #colors = plt.cm.hsv(np.linspace(0, 1, 4)).tolist()
         col = [0, 126, 252]
-        if top_conf.shape[0] > 1:
-            col = [i for i in range(255)[::(255 // top_conf.shape[0] - 1)]]
+        divider = top_conf.shape[0]
+        if divider > 1:
+            if divider > 100:
+                divider = 100
+            col = [i for i in range(255)[::(255 // divider - 1)]]
 
-        for i in range(top_conf.shape[0]):
-            xmin = int(round(top_xmin[i] * img.shape[1]))
-            ymin = int(round(top_ymin[i] * img.shape[0]))
-            xmax = int(round(top_xmax[i] * img.shape[1]))
-            ymax = int(round(top_ymax[i] * img.shape[0]))
-            score = top_conf[i]
-            label = int(top_label_indices[i])
-            caption = '{:0.2f}, {}'.format(score, label)
-            coords = (xmin, ymin), xmax-xmin+1, ymax-ymin+1
-            reg_lt = (xmin, ymax)
-            reg_rb = (xmax, ymin)
-            color = (col[i], col[::-1][i], 0) # colors[label]
+        pred_list = []
+        for j in range(top_conf.shape[0]):
+            xmin = int(round(top_xmin[j] * img.shape[1]))
+            ymin = int(round(top_ymin[j] * img.shape[0]))
+            xmax = int(round(top_xmax[j] * img.shape[1]))
+            ymax = int(round(top_ymax[j] * img.shape[0]))
+            score = top_conf[j]
+            label = int(top_label_indices[j])
+            #if label > 0:
+            #    if xmin >= 0 and ymin >= 0:
+            pred_list.append(Pred(score, label, xmin, xmax, ymin, ymax))
+
+
+        pred_list_sort = pred_list.copy()
+        pred_list_sort.sort(key=lambda p: p.score)
+        pred_list_sort.reverse()
+        for k, p in enumerate(pred_list_sort[:10]):
+            caption = '{:0.2f}, {}'.format(p.score, p.label)
+            coords = (p.xmin, p.ymin), p.xmax-p.xmin+1, p.ymax-p.ymin+1
+            reg_lt = (p.ymin, p.xmin) # (p.xmin, p.ymax)
+            reg_rb = (p.ymax, p.xmax) # (p.xmax, p.ymin)
+            print('%02d - %02d : ' % (i, k), '[%02d] %f' % (p.label, p.score), '  (reg_lt, reg_rb)=', (reg_lt, reg_rb))
+            c_k = k
+            if c_k >= len(col):
+                c_k = c_k - (len(col)) * (c_k // (len(col)))
+            color = (col[c_k], col[::-1][c_k], 0) # colors[label]
             cv2.putText(img, caption, reg_lt, cv2.FONT_HERSHEY_PLAIN, 1, color)
             cv2.rectangle(img, reg_lt, reg_rb, color, 2)
-
+        image_data.append(img)
     return image_data
 
 
@@ -205,7 +241,7 @@ if __name__ == '__main__':
         os.mkdir(DIR_OUTPUTS)
 
     #train(gpu_num=GPU_NUM, with_generator=False, load_model=False)
-    train(gpu_num=GPU_NUM, with_generator=True, load_model=False)
+    train(gpu_num=GPU_NUM, with_generator=True, load_model=True)
 
     #predict(DIR_INPUTS, gpu_num=GPU_NUM)
     #predict(DIR_PREDICTS, gpu_num=GPU_NUM)

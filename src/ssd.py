@@ -47,7 +47,7 @@ class SSD(object):
 
 
     def compile_model(self):
-        self.__model.compile(optimizer=Adam(lr=0.001), loss=MultiboxLoss(self.__class_num, self.__batch_size).loss)
+        self.__model.compile(optimizer=Adam(lr=0.0001), loss=MultiboxLoss(self.__class_num, self.__batch_size).loss)
 
 
     def get_model(self, with_compile=False):
