@@ -8,13 +8,14 @@ import keras.backend as KB
 # TODO : Refactoring
 class BBoxUtility(object):
     def __init__(self, num_classes, priors=None, overlap_threshold=0.5,
-                 nms_thresh=0.45, top_k=400):
+                 nms_thresh=0.45, top_k=400, image_shape=(300, 300, 3)):
         self.num_classes = num_classes
         self.priors = priors
         self.num_priors = 0 if priors is None else len(priors)
         self.overlap_threshold = overlap_threshold
         self._nms_thresh = nms_thresh
         self._top_k = top_k
+        self.__image_shape = image_shape
         self.boxes = tf.placeholder(dtype='float32', shape=(None, 4))
         self.scores = tf.placeholder(dtype='float32', shape=(None,))
         self.nms = tf.image.non_max_suppression(self.boxes, self.scores,
@@ -23,16 +24,22 @@ class BBoxUtility(object):
         self.sess = tf.Session(config=tf.ConfigProto(device_count={'GPU': 0}))
 
     def iou(self, box):
+        img_h, img_w, _ = self.__image_shape
+        pixel_ratio_h, pixel_ratio_w = 1 / img_h, 1 / img_w
+        one_pixel_h, one_pixel_w = pixel_ratio_h * 1, pixel_ratio_w * 1
+
         # compute intersection
         inter_upleft = np.maximum(self.priors[:, :2], box[:2])
         inter_botright = np.minimum(self.priors[:, 2:4], box[2:])
         inter_wh = inter_botright - inter_upleft
+        inter_wh[:, 0] += one_pixel_w
+        inter_wh[:, 1] += one_pixel_h
         inter_wh = np.maximum(inter_wh, 0)
         inter = inter_wh[:, 0] * inter_wh[:, 1]
         # compute union
-        area_pred = (box[2] - box[0]) * (box[3] - box[1])
-        area_gt = (self.priors[:, 2] - self.priors[:, 0])
-        area_gt *= (self.priors[:, 3] - self.priors[:, 1])
+        area_pred = (box[2] - box[0] + one_pixel_w) * (box[3] - box[1] + one_pixel_h)
+        area_gt = (self.priors[:, 2] - self.priors[:, 0] + one_pixel_w)
+        area_gt *= (self.priors[:, 3] - self.priors[:, 1] + one_pixel_h)
         union = area_pred + area_gt - inter
         # compute iou
         iou = inter / union
@@ -84,22 +91,31 @@ class BBoxUtility(object):
         return assignment
 
     def decode_boxes(self, mbox_loc, mbox_priorbox, variances):
+        img_h, img_w, _ = self.__image_shape
+        pixel_ratio_h, pixel_ratio_w = 1 / img_h, 1 / img_w
+        one_pixel_h, one_pixel_w = pixel_ratio_h * 1, pixel_ratio_w * 1
         prior_width = mbox_priorbox[:, 2] - mbox_priorbox[:, 0]
+        prior_width += one_pixel_w
         prior_height = mbox_priorbox[:, 3] - mbox_priorbox[:, 1]
+        prior_height += one_pixel_h
         prior_center_x = 0.5 * (mbox_priorbox[:, 2] + mbox_priorbox[:, 0])
         prior_center_y = 0.5 * (mbox_priorbox[:, 3] + mbox_priorbox[:, 1])
         decode_bbox_center_x = mbox_loc[:, 0] * prior_width * variances[:, 0]
+        #decode_bbox_center_x = mbox_loc[:, 0] * prior_width * variances[:, 0] * mbox_priorbox[:, 0]
         decode_bbox_center_x += prior_center_x
         decode_bbox_center_y = mbox_loc[:, 1] * prior_width * variances[:, 1]
+        #decode_bbox_center_y = mbox_loc[:, 1] * prior_width * variances[:, 1] * mbox_priorbox[:, 1]
         decode_bbox_center_y += prior_center_y
         decode_bbox_width = np.exp(mbox_loc[:, 2] * variances[:, 2])
+        #decode_bbox_width = np.exp(mbox_loc[:, 2] * variances[:, 2] * mbox_priorbox[:, 2])
         decode_bbox_width *= prior_width
         decode_bbox_height = np.exp(mbox_loc[:, 3] * variances[:, 3])
+        #decode_bbox_height = np.exp(mbox_loc[:, 3] * variances[:, 3] * mbox_priorbox[:, 3])
         decode_bbox_height *= prior_height
-        decode_bbox_xmin = decode_bbox_center_x - 0.5 * decode_bbox_width
-        decode_bbox_ymin = decode_bbox_center_y - 0.5 * decode_bbox_height
-        decode_bbox_xmax = decode_bbox_center_x + 0.5 * decode_bbox_width
-        decode_bbox_ymax = decode_bbox_center_y + 0.5 * decode_bbox_height
+        decode_bbox_xmin = decode_bbox_center_x - 0.5 * (decode_bbox_width - one_pixel_w)
+        decode_bbox_ymin = decode_bbox_center_y - 0.5 * (decode_bbox_height - one_pixel_h)
+        decode_bbox_xmax = decode_bbox_center_x + 0.5 * (decode_bbox_width - one_pixel_w)
+        decode_bbox_ymax = decode_bbox_center_y + 0.5 * (decode_bbox_height - one_pixel_h)
         decode_bbox = np.concatenate((decode_bbox_xmin[:, None],
                                       decode_bbox_ymin[:, None],
                                       decode_bbox_xmax[:, None],
@@ -126,6 +142,9 @@ class BBoxUtility(object):
                 if len(c_confs[c_confs_m]) > 0:
                     boxes_to_process = decode_bbox[c_confs_m]
                     confs_to_process = c_confs[c_confs_m]
+                    org_boxes_to_process = mbox_loc[i][c_confs_m]
+                    pboxes_to_process = mbox_priorbox[i][c_confs_m]
+                    varces_to_process = variances[i][c_confs_m]
                     #feed_dict = {self.boxes: boxes_to_process,
                     #             self.scores: confs_to_process}
                     #idx = self.sess.run(self.nms, feed_dict=feed_dict)
@@ -133,10 +152,14 @@ class BBoxUtility(object):
                                                         , self._top_k
                                                         , iou_threshold=self._nms_thresh)
                     idx = KB.get_value(idx_t)
+                    #idx = range(len(boxes_to_process))
                     good_boxes = boxes_to_process[idx]
                     confs = confs_to_process[idx][:, None]
                     labels = c * np.ones((len(idx), 1))
-                    c_pred = np.concatenate((labels, confs, good_boxes),
+                    org_boxes = org_boxes_to_process[idx]
+                    org_pboxes = pboxes_to_process[idx]
+                    org_variances = varces_to_process[idx]
+                    c_pred = np.concatenate((labels, confs, good_boxes, org_boxes, org_pboxes, org_variances),
                                             axis=1)
                     results[-1].extend(c_pred)
             if len(results[-1]) > 0:

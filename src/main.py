@@ -10,32 +10,33 @@ import random
 from ssd import SSD
 from images_loader import load_images, save_images
 from option_parser import get_option
-from data_generator import DataGenerator
+from my_data_generator import DataGenerator
 from history_checkpoint_callback import HistoryCheckpoint
 from utils import BBoxUtility
 
 
-CLASS_NUM = 21
+CLASS_NUM = 1 + 1 # background + class
 INPUT_IMAGE_SHAPE = (300, 300, 3)
 BATCH_SIZE = 80
 EPOCHS = 1000
 GPU_NUM = 4
+WITH_NORM = False
 
 DIR_BASE = os.path.join('.', '..')
 DIR_MODEL = os.path.join(DIR_BASE, 'model')
 DIR_TRAIN_INPUTS = os.path.join(DIR_BASE, 'inputs')
 DIR_TRAIN_TEACHERS = os.path.join(DIR_BASE, 'teachers')
 DIR_VALID_INPUTS = os.path.join(DIR_BASE, 'valid_inputs')
-TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
+DIR_VALID_TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
 DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
 DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
 DIR_PKL = os.path.join(DIR_BASE, 'PKL')
-DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages', '')
+#DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages', '')
 
 FILE_MODEL = 'segmentation_model.hdf5'
 FILE_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
-FILE_GT_PKL = 'voc_2012.pkl'
+#FILE_GT_PKL = 'voc_2012.pkl'
 
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
@@ -60,7 +61,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
                 , KC.ModelCheckpoint(filepath=model_filename
                                      , verbose=1
                                      , save_weights_only=True
-                                     , save_best_only=True
+                                     #, save_best_only=True
                                      , period=10
                                     )
                 ]
@@ -70,48 +71,37 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         model.load_weights(model_filename)
         print('... loaded')
 
-    print('data generator creating ... ', end='', flush=True)
+    print('data generating ...', end='', flush=True)
     priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
     bbox_util = BBoxUtility(CLASS_NUM, priors)
 
-    ground_truth = pickle.load(open(os.path.join(DIR_PKL, FILE_GT_PKL), 'rb'))
-    keys = sorted(ground_truth.keys())
-    random.shuffle(keys)
-    num_train = int(round(0.8 * len(keys)))
-    train_keys = keys[:num_train]
-    val_keys = keys[num_train:]
-
-    gen = DataGenerator(ground_truth, bbox_util, BATCH_SIZE, DIR_INPUT_IMAGES
-                        , train_keys, val_keys
-                        , (INPUT_IMAGE_SHAPE[0], INPUT_IMAGE_SHAPE[1]), do_crop=False)
-
-
+    train_generator = DataGenerator(DIR_TRAIN_INPUTS, DIR_TRAIN_TEACHERS, bbox_util
+                                    , INPUT_IMAGE_SHAPE, with_norm=WITH_NORM)
+    valid_generator = DataGenerator(DIR_VALID_INPUTS, DIR_VALID_TEACHERS, bbox_util
+                                    , INPUT_IMAGE_SHAPE, with_norm=WITH_NORM)
     print('... created')
 
     if with_generator:
-        print('##### gen.train_batches : ', gen.train_batches)
-        print('##### gen.val_batches : ', gen.val_batches)
-        #train_data_num = train_generator.data_size()
-        #valid_data_num = valid_generator.data_size()
-        history = model.fit_generator(gen.generate(True)
-                                      , steps_per_epoch= 200 #gen.train_batches
+        train_data_num = train_generator.data_size()
+        valid_data_num = valid_generator.data_size()
+        history = model.fit_generator(train_generator.generator(batch_size=BATCH_SIZE)
+                                      , steps_per_epoch=math.ceil((train_data_num / BATCH_SIZE) * 2)
                                       , epochs=EPOCHS
                                       , verbose=1
                                       , use_multiprocessing=True
-                                      #, use_multiprocessing=False
                                       , callbacks=callbacks
-                                      , validation_data=gen.generate(False)
-                                      , validation_steps= 50 #gen.val_batches
+                                      , validation_data=valid_generator.generator(batch_size=BATCH_SIZE)
+                                      , validation_steps=math.ceil(valid_data_num / BATCH_SIZE)
                                      )
     else:
-        # TODO
         print('data generateing ... ') #, end='', flush=True)
-        #train_inputs, train_teachers = train_generator.generate_data()
-        #valid_data = valid_generator.generate_data()
+        train_inputs, train_teachers = train_generator.generate_data(batch_size=BATCH_SIZE)
+        valid_data = valid_generator.generate_data(batch_size=BATCH_SIZE)
         print('... generated')
-        #history = model.fit(train_inputs, train_teachers, batch_size=BATCH_SIZE, epochs=EPOCHS
-        #                    , validation_data=valid_data
-        #                    , shuffle=True, verbose=1, callbacks=callbacks)
+        history = model.fit(train_inputs, train_teachers, batch_size=BATCH_SIZE, epochs=EPOCHS
+                            , validation_data=valid_data
+                            , shuffle=True, verbose=1, callbacks=callbacks)
+
     print('model saveing ... ', end='', flush=True)
     model.save_weights(model_filename)
     print('... saved')
@@ -132,8 +122,7 @@ def save_learning_curve(history):
 
 
 def predict(input_dir, gpu_num=None):
-    with_norm = False 
-    (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE, with_normalize=with_norm)
+    (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE, with_normalize=WITH_NORM)
     priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
     bbox_util = BBoxUtility(CLASS_NUM, priors)
 
@@ -146,19 +135,42 @@ def predict(input_dir, gpu_num=None):
     print('loading weghts ...')
     model.load_weights(os.path.join(DIR_MODEL, FILE_MODEL))
     print('... loaded')
+
+
+    """
+    for k, (fname, inp) in enumerate(zip(file_names, inputs)):
+        inp = np.array([inp])
+        inp_tmp = np.concatenate([inp]*BATCH_SIZE, axis=0)
+        preds = model.predict(inp_tmp, BATCH_SIZE)
+        #preds = model.predict(inp_tmp, 1)
+        preds = preds[0]
+        preds = np.array([preds])
+        results = bbox_util.detection_out(preds)
+        image_data = __outputs_to_image_data(inp, results)
+        save_images(DIR_OUTPUTS, image_data, [fname], with_unnormalize=WITH_NORM)
+    #"""
+
+    #"""
     print('predicting ...')
     preds = model.predict(inputs, BATCH_SIZE)
     print('... predicted')
 
     print('result saveing ...')
+    pred_pbox = preds[0, :, -8:]
+    #np.save('pred_pbox.npy', pred_pbox)
     results = bbox_util.detection_out(preds)
-    image_data = __outputs_to_image_data(inputs, results)
-    save_images(DIR_OUTPUTS, image_data, file_names, with_unnormalize=with_norm)
+    image_data = __outputs_to_image_data(inputs, results, file_names)
+    save_images(DIR_OUTPUTS, image_data, file_names, with_unnormalize=WITH_NORM)
     print('... finish .')
+    #"""
 
 
 class Pred():
-    def __init__(self, score, label, xmin, xmax, ymin, ymax):
+    #def __init__(self, score, label, xmin, xmax, ymin, ymax):
+    def __init__(self, score, label, xmin, xmax, ymin, ymax
+                 , org_xmin, org_ymin, org_xmax, org_ymax
+                 , pb_xmin, pb_ymin, pb_xmax, pb_ymax
+                 , var_1, var_2, var_3, var_4):
         self.score = score
         self.label = label
         self.xmin = xmin
@@ -166,11 +178,30 @@ class Pred():
         self.ymin = ymin
         self.ymax = ymax
 
+        self.org_xmin = org_xmin
+        self.org_ymin = org_ymin
+        self.org_xmax = org_xmax
+        self.org_ymax = org_ymax
+        self.pb_xmin = pb_xmin
+        self.pb_ymin = pb_ymin
+        self.pb_xmax = pb_xmax
+        self.pb_ymax = pb_ymax
+        self.var_1 = var_1
+        self.var_2 = var_2
+        self.var_3 = var_3
+        self.var_4 = var_4
 
-def __outputs_to_image_data(images, preds):
+
+#def __outputs_to_image_data(images, preds):
+def __outputs_to_image_data(images, preds, filenames):
     # TODO : Refactoring
     image_data = []
     for i, img in enumerate(images):
+        filename = filenames[i]
+        if len(preds[i]) < 1:
+            print('no pred : ', filename)
+            image_data.append(img)
+            continue
         # Parse the outputs.
         det_label = preds[i][:, 0]
         det_conf = preds[i][:, 1]
@@ -179,7 +210,24 @@ def __outputs_to_image_data(images, preds):
         det_xmax = preds[i][:, 4]
         det_ymax = preds[i][:, 5]
 
-        # Get detections with confidence higher than 0.6.
+        org_xmin = preds[i][:, 6]
+        org_ymin = preds[i][:, 7]
+        org_xmax = preds[i][:, 8]
+        org_ymax = preds[i][:, 9]
+
+        org_pb_xmin = preds[i][:, 10]
+        org_pb_ymin = preds[i][:, 11]
+        org_pb_xmax = preds[i][:, 12]
+        org_pb_ymax = preds[i][:, 13]
+
+        org_var_1 = preds[i][:, 14]
+        org_var_2 = preds[i][:, 15]
+        org_var_3 = preds[i][:, 16]
+        org_var_4 = preds[i][:, 17]
+
+        np.set_printoptions(threshold=10000000)
+
+        ## Get detections with confidence higher than 0.6.
         #top_indices = [i for i, conf in enumerate(det_conf) if conf >= 0.6]
         #if len(top_indices) < 1:
         #    print('[%03d]' % i, ' top_confs is 0 (all confs is ', len(det_conf), ')')
@@ -207,20 +255,36 @@ def __outputs_to_image_data(images, preds):
             ymax = int(round(top_ymax[j] * img.shape[0]))
             score = top_conf[j]
             label = int(top_label_indices[j])
-            #if label > 0:
-            #    if xmin >= 0 and ymin >= 0:
-            pred_list.append(Pred(score, label, xmin, xmax, ymin, ymax))
+            if label > 0:
+                if xmin >= 0 and ymin >= 0:
+                    pred_list.append(Pred(score, label, xmin, xmax, ymin, ymax
+                                          , org_xmin[j], org_ymin[j], org_xmax[j], org_ymax[j]
+                                          , org_pb_xmin[j], org_pb_ymin[j], org_pb_xmax[j], org_pb_ymax[j]
+                                          , org_var_1[j], org_var_2[j], org_var_3[j], org_var_4[j]
+                                         ))
 
+
+        #print('&&&&&&&&&& : ', filename)
 
         pred_list_sort = pred_list.copy()
         pred_list_sort.sort(key=lambda p: p.score)
         pred_list_sort.reverse()
-        for k, p in enumerate(pred_list_sort[:10]):
-            caption = '{:0.2f}, {}'.format(p.score, p.label)
-            coords = (p.xmin, p.ymin), p.xmax-p.xmin+1, p.ymax-p.ymin+1
-            reg_lt = (p.ymin, p.xmin) # (p.xmin, p.ymax)
-            reg_rb = (p.ymax, p.xmax) # (p.xmax, p.ymin)
-            print('%02d - %02d : ' % (i, k), '[%02d] %f' % (p.label, p.score), '  (reg_lt, reg_rb)=', (reg_lt, reg_rb))
+        for k, p in enumerate(pred_list_sort):
+            if p.score < 0.6:
+                break
+            #print('@@@@@ %03d' % k)
+            #print('### label : ', p.label)
+            #print('### conf(score) : ', p.score)
+            #print('### (xmin, ymin, xmax, ymax) : ', (p.xmin, p.ymin, p.xmax, p.ymax))
+            #print('### (org_xmin, org_ymin, org_xmax, org_ymax) : ', (p.org_xmin, p.org_ymin, p.org_xmax, p.org_ymax))
+            #print('### (pb_xmin, pb_ymin, pb_xmax, pb_ymax) : ', (p.pb_xmin, p.pb_ymin, p.pb_xmax, p.pb_ymax))
+            #print('### (var_1, var_2, var_3, var_4) : ', (p.var_1, p.var_2, p.var_3, p.var_4))
+            #print('')
+
+            caption = '%d : %1.2f' % (p.label, p.score)
+            reg_lt = (p.xmin, p.ymin) # (p.ymin, p.xmin)
+            reg_rb = (p.xmax, p.ymax) # (p.ymax, p.xmax)
+            #print('%02d - %02d : ' % (i, k), '[%02d] %f' % (p.label, p.score), '  (reg_lt, reg_rb)=', (reg_lt, reg_rb))
             c_k = k
             if c_k >= len(col):
                 c_k = c_k - (len(col)) * (c_k // (len(col)))
@@ -228,6 +292,8 @@ def __outputs_to_image_data(images, preds):
             cv2.putText(img, caption, reg_lt, cv2.FONT_HERSHEY_PLAIN, 1, color)
             cv2.rectangle(img, reg_lt, reg_rb, color, 2)
         image_data.append(img)
+        #print('$$$$$$$$$$$$$$$$$$$$')
+        #print('')
     return image_data
 
 
@@ -240,8 +306,8 @@ if __name__ == '__main__':
     if not(os.path.exists(DIR_OUTPUTS)):
         os.mkdir(DIR_OUTPUTS)
 
-    #train(gpu_num=GPU_NUM, with_generator=False, load_model=False)
-    train(gpu_num=GPU_NUM, with_generator=True, load_model=True)
+    train(gpu_num=GPU_NUM, with_generator=False, load_model=False)
+    #train(gpu_num=GPU_NUM, with_generator=True, load_model=False)
 
     #predict(DIR_INPUTS, gpu_num=GPU_NUM)
     #predict(DIR_PREDICTS, gpu_num=GPU_NUM)

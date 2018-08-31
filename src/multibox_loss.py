@@ -40,6 +40,7 @@ class MultiboxLoss(object):
         abs_loss = tf.abs(diff)
         sq_loss = 0.5 * (diff)**2
         l1_loss = tf.where(tf.less(abs_loss, 1.0), sq_loss, abs_loss - 0.5)
+        #l1_loss = tf.where(tf.less(abs_loss, 1.0), sq_loss, abs_loss - 0.5) * 3
         return tf.reduce_sum(l1_loss, axis=-1)
 
 
