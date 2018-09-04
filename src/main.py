@@ -10,14 +10,14 @@ import random
 from ssd import SSD
 from images_loader import load_images, save_images
 from option_parser import get_option
-from my_data_generator import DataGenerator
+from data_generator import DataGenerator
 from history_checkpoint_callback import HistoryCheckpoint
 from utils import BBoxUtility
 
 
 CLASS_NUM = 1 + 1 # background + class
-INPUT_IMAGE_SHAPE = (300, 300, 3)
-BATCH_SIZE = 80
+INPUT_IMAGE_SHAPE = (512, 512, 3)
+BATCH_SIZE = 40
 EPOCHS = 1000
 GPU_NUM = 4
 WITH_NORM = False
@@ -31,12 +31,8 @@ DIR_VALID_TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
 DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
 DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
-DIR_PKL = os.path.join(DIR_BASE, 'PKL')
-#DIR_INPUT_IMAGES = os.path.join(DIR_BASE, 'VOCdevkit', 'VOC2012', 'JPEGImages', '')
 
 FILE_MODEL = 'segmentation_model.hdf5'
-FILE_PRIORS_PKL = 'prior_boxes_ssd300.pkl'
-#FILE_GT_PKL = 'voc_2012.pkl'
 
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
@@ -72,7 +68,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         print('... loaded')
 
     print('data generating ...', end='', flush=True)
-    priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
+    priors = network.get_prior_boxes()
     bbox_util = BBoxUtility(CLASS_NUM, priors)
 
     train_generator = DataGenerator(DIR_TRAIN_INPUTS, DIR_TRAIN_TEACHERS, bbox_util

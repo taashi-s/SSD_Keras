@@ -8,19 +8,28 @@ import time
 import images_loader as iml
 
 class DataGenerator(object):
-    def __init__(self, input_dir, teacher_dir, bbox_util, image_shape, with_norm=True):
+    DEFOULT_IMAGE_FILE_EXTENSIONS = ['.png', '.jpeg', '.jpg']
+    TEACHER_FILE_EXTENSIONS = '.npy'
+
+    def __init__(self, input_dir, teacher_dir, bbox_util, image_shape, with_norm=True
+                 , include_background_class=True, image_file_exts=None, with_info=True):
         self.__input_dir = input_dir
         self.__teacher_dir = teacher_dir
         self.__bbox_util = bbox_util
         self.__image_shape = image_shape
         self.__with_norm = with_norm
+        self.__include_bg_cls = include_background_class
+        self.__image_file_exts = self.DEFOULT_IMAGE_FILE_EXTENSIONS
+        if image_file_exts is not None:
+            self.__image_file_exts = image_file_exts
+        self.__with_info = with_info
         self.__data_names = self.__get_data_names(self.__input_dir, self.__teacher_dir)
 
 
     def __get_data_names(self, input_dir, teacher_dir):
-        files = glob.glob(os.path.join(input_dir, '*.png'))
-        files += glob.glob(os.path.join(input_dir, '*.jpeg'))
-        files += glob.glob(os.path.join(input_dir, '*.jpg'))
+        files = []
+        for ext in self.__image_file_exts:
+            files += glob.glob(os.path.join(input_dir, '*' + ext))
         files.sort()
 
         data_names = []
@@ -28,9 +37,9 @@ class DataGenerator(object):
             # TODO : Support other extension
             name = os.path.basename(file)
             basename, _ = os.path.splitext(name)
-            teacher_path = os.path.join(teacher_dir, basename + '.npy')
+            teacher_path = os.path.join(teacher_dir, basename + self.TEACHER_FILE_EXTENSIONS)
             if not os.path.exists(teacher_path):
-                print('teacher file is not exists : ', teacher_path)
+                self.print_info('teacher file is not exists : ', teacher_path)
                 continue
             data_names.append(name)
         return data_names
@@ -59,9 +68,10 @@ class DataGenerator(object):
 
             input_list.append(input_img)
             teacher_list.append(teacher_vecs)
-            if k % 200 == 0 or k == data_num - 1:
+            c = k + 1
+            if c % 200 == 0 or c == data_num or c == 1:
                 now_time = time.time()
-                print('## generate : ', '%05d' % k, '/', '%05d' % data_num, ' %5.3f(%5.3f)' % (now_time - prev_time, now_time - start))
+                self.print_info('## generate : ', '%05d' % c, '/', '%05d' % data_num, ' %5.3f(%5.3f)' % (now_time - prev_time, now_time - start))
                 prev_time = now_time
 
         inputs = np.array(input_list)
@@ -75,7 +85,7 @@ class DataGenerator(object):
                 diff = batch_size - remain
                 inputs = np.concatenate([inputs, inputs[:diff]], axis=0)
                 teachers = np.concatenate([teachers, teachers[:diff]], axis=0)
-        print('$$$ np.shape(inputs) : ', np.shape(inputs))
+        self.print_info('$$$ np.shape(inputs) : ', np.shape(inputs))
         return inputs, teachers
 
 
@@ -111,7 +121,7 @@ class DataGenerator(object):
     def load_data(self, name):
         basename, _ = os.path.splitext(name)
         input_path = os.path.join(self.__input_dir, name)
-        teacher_path = os.path.join(self.__teacher_dir, basename + '.npy')
+        teacher_path = os.path.join(self.__teacher_dir, basename + self.TEACHER_FILE_EXTENSIONS)
 
         input_img = iml.load_image(input_path, self.__image_shape, with_normalize=self.__with_norm)
         teacher_vecs = np.load(teacher_path)
@@ -121,14 +131,20 @@ class DataGenerator(object):
 
         cls_one_hots = []
         bounding_boxes = []
-        #cls_one_hots, bounding_boxes = zip(*teacher_vecs)
         for teacher_vec in teacher_vecs:
             cls_one_hot, bounding_box = teacher_vec
             cls_one_hot = cls_one_hot.tolist()
             bounding_box = bounding_box.tolist()
-            cls_one_hots.append(cls_one_hot[1:])
+            if self.__include_bg_cls:
+                cls_one_hot = cls_one_hot[1:]
+            cls_one_hots.append(cls_one_hot)
             bounding_boxes.append(bounding_box)
         teacher_vecs_restack = np.hstack((np.asarray(bounding_boxes), np.asarray(cls_one_hots)))
         teacher_vecs_assign = self.__bbox_util.assign_boxes(teacher_vecs_restack)
         return input_img, teacher_vecs_assign
+
+
+    def print_info(self, *args):
+        if self.__with_info:
+            print(*args)
 

@@ -3,14 +3,16 @@ from keras.layers import Reshape
 from .normalize_layer import NormalizeLayer
 from .location_layer import LocationLayer
 from .confidence_layer import ConfidenceLayer
-from .prior_box_layer import PriorBoxLayer
+from .utils import PriorBox
+import keras.backend as KB
 
 
 class RegionBlock():
-    def __init__(self, class_num, img_shape, min_size, max_size=None
+    def __init__(self, class_num, batch_size, img_shape, min_size, max_size=None
                  , aspect_ratios=[2, 3], variances=[0.1, 0.1, 0.2, 0.2]
                  , priors=6, normalize_scale=None, use_dense=False):
         self.__class_num = class_num
+        self.__batch_size = batch_size
         self.__img_shape = img_shape
         self.__min_size = min_size
         self.__max_size = max_size
@@ -37,10 +39,11 @@ class RegionBlock():
 
         if self.__use_dense:
             layer = Reshape((1, 1, -1))(layer)
-        priorbox = PriorBoxLayer(self.__img_shape, self.__min_size
-                                 , max_size=self.__max_size
-                                 , aspect_ratios=self.__aspect_ratios
-                                 , variances=self.__variances
-                                )(layer)
+        _, h, w, _ = layer.get_shape().as_list()
+        priorbox = PriorBox(self.__img_shape, self.__min_size
+                            , max_size=self.__max_size
+                            , aspect_ratios=self.__aspect_ratios
+                            , variances=self.__variances
+                           )(h, w)
 
         return loc, conf, priorbox

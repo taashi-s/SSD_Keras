@@ -1,3 +1,4 @@
+import numpy as np
 from keras.models import Model
 from keras.layers import Input, GlobalAveragePooling2D
 from keras.optimizers import Adam, SGD
@@ -31,17 +32,19 @@ class SSD(object):
 
         pool = GlobalAveragePooling2D()(conv9)
 
-        region_1 = RegionBlock(class_num, input_shape, 30
+        region_1 = RegionBlock(class_num, batch_size, input_shape, 30
                                , aspect_ratios=[2], priors=3, normalize_scale=20)(conv4)
-        region_2 = RegionBlock(class_num, input_shape, 60, max_size=114)(conv6)
-        region_3 = RegionBlock(class_num, input_shape, 114, max_size=168)(conv7)
-        region_4 = RegionBlock(class_num, input_shape, 168, max_size=222)(conv8)
-        region_5 = RegionBlock(class_num, input_shape, 222, max_size=276)(conv9)
-        region_6 = RegionBlock(class_num, input_shape, 276, max_size=330
+        region_2 = RegionBlock(class_num, batch_size, input_shape, 60, max_size=114)(conv6)
+        region_3 = RegionBlock(class_num, batch_size, input_shape, 114, max_size=168)(conv7)
+        region_4 = RegionBlock(class_num, batch_size, input_shape, 168, max_size=222)(conv8)
+        region_5 = RegionBlock(class_num, batch_size, input_shape, 222, max_size=276)(conv9)
+        region_6 = RegionBlock(class_num, batch_size, input_shape, 276, max_size=330
                                , use_dense=True)(pool)
 
         layers = [region_1, region_2, region_3, region_4, region_5, region_6]
         outputs = MergeBlock(class_num=class_num)(layers)
+
+        self.__set_prior_boxes([prior_box for _, _, prior_box in layers])
 
         self.__model = Model(inputs=[inputs], outputs=[outputs])
 
@@ -62,6 +65,14 @@ class SSD(object):
     def get_parallel_model(self, gpu_num, with_compile=False):
         self.__model = multi_gpu_model(self.__model, gpus=gpu_num)
         return self.get_model(with_compile)
+
+
+    def __set_prior_boxes(self, prior_box_list):
+        self.__prior_boxes = np.concatenate(prior_box_list, axis=0)
+
+
+    def get_prior_boxes(self):
+        return self.__prior_boxes
 
 
     def show_model_summary(self):
