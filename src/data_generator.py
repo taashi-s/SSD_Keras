@@ -20,6 +20,7 @@ class DataGenerator(object):
         self.__with_norm = with_norm
         self.__include_bg_cls = include_background_class
         self.__image_file_exts = self.DEFOULT_IMAGE_FILE_EXTENSIONS
+        self.__image_file_exts.extend([str.upper(str(x)) for x in self.__image_file_exts])
         if image_file_exts is not None:
             self.__image_file_exts = image_file_exts
         self.__with_info = with_info
