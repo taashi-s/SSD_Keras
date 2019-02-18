@@ -16,8 +16,8 @@ from utils import BBoxUtility
 
 
 CLASS_NUM = 1 + 1 # background + class
-INPUT_IMAGE_SHAPE = (512, 512, 3)
-BATCH_SIZE = 40
+INPUT_IMAGE_SHAPE = (1024, 1024, 3)
+BATCH_SIZE = 16
 EPOCHS = 1000
 GPU_NUM = 4
 WITH_NORM = False
@@ -119,10 +119,10 @@ def save_learning_curve(history):
 
 def predict(input_dir, gpu_num=None):
     (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE, with_normalize=WITH_NORM)
-    priors = pickle.load(open(os.path.join(DIR_PKL, FILE_PRIORS_PKL), 'rb'))
+    network = SSD(INPUT_IMAGE_SHAPE, BATCH_SIZE, class_num=CLASS_NUM)
+    priors = network.get_prior_boxes()
     bbox_util = BBoxUtility(CLASS_NUM, priors)
 
-    network = SSD(INPUT_IMAGE_SHAPE, BATCH_SIZE, class_num=CLASS_NUM)
     if isinstance(gpu_num, int):
         model = network.get_parallel_model(gpu_num)
     else:
