@@ -1,4 +1,4 @@
-# traial UNet (with Keras 2.x)
+# traial SSD (use Keras 2.x)
 
 ## Current problem
 ```
