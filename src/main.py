@@ -63,7 +63,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
                 ]
 
     if load_model:
-        print('loading weghts ... ', end='', flush=True)
+        print('loading weights ... ', end='', flush=True)
         model.load_weights(model_filename)
         print('... loaded')
 
@@ -128,7 +128,7 @@ def predict(input_dir, gpu_num=None):
     else:
         model = network.get_model()
 #    model.summary()
-    print('loading weghts ...')
+    print('loading weights ...')
     model.load_weights(os.path.join(DIR_MODEL, FILE_MODEL))
     print('... loaded')
 

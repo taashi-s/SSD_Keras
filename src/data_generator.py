@@ -8,7 +8,7 @@ import time
 import images_loader as iml
 
 class DataGenerator(object):
-    DEFOULT_IMAGE_FILE_EXTENSIONS = ['.png', '.jpeg', '.jpg']
+    DEFAULT_IMAGE_FILE_EXTENSIONS = ['.png', '.jpeg', '.jpg']
     TEACHER_FILE_EXTENSIONS = '.npy'
 
     def __init__(self, input_dir, teacher_dir, bbox_util, image_shape, with_norm=True
@@ -19,7 +19,7 @@ class DataGenerator(object):
         self.__image_shape = image_shape
         self.__with_norm = with_norm
         self.__include_bg_cls = include_background_class
-        self.__image_file_exts = self.DEFOULT_IMAGE_FILE_EXTENSIONS
+        self.__image_file_exts = self.DEFAULT_IMAGE_FILE_EXTENSIONS
         self.__image_file_exts.extend([str.upper(str(x)) for x in self.__image_file_exts])
         if image_file_exts is not None:
             self.__image_file_exts = image_file_exts

@@ -10,7 +10,7 @@ def load_images(dir_name, image_shape, with_normalize=True):
     files.sort()
     h, w, ch = image_shape
     images = []
-    print ('load_images : ', len(files))
+    print('load_images : ', len(files))
     for i, file in enumerate(files):
         img = load_image(file, image_shape, with_normalize=with_normalize)
         images.append(img)
