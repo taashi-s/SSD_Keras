@@ -274,6 +274,7 @@ def __outputs_to_image_data(images, preds, filenames):
 
         #print('&&&&&&&&&& : ', filename)
 
+        image_npy = []
         pred_list_sort = pred_list.copy()
         pred_list_sort.sort(key=lambda p: p.score)
         pred_list_sort.reverse()
@@ -299,6 +300,18 @@ def __outputs_to_image_data(images, preds, filenames):
             color = colors[p.label - 1] # colors[label]
             cv2.putText(img, caption, reg_lt, cv2.FONT_HERSHEY_PLAIN, 1, color)
             cv2.rectangle(img, reg_lt, reg_rb, color, 2)
+
+            data_npy = [ np.array([int(p.label)])
+                       , np.array([p.score])
+                       , np.array([p.xmin, p.ymin, p.xmax, p.ymax])
+                       ]
+            image_npy.append(data_npy)
+
+        name = os.path.basename(filename)
+        name_base, ext = os.path.splitext(name)
+        save_path = os.path.join(DIR_OUTPUTS, name_base + ".npy")
+        np.save(save_path, np.array(image_npy))
+
         image_data.append(img)
         #print('$$$$$$$$$$$$$$$$$$$$')
         #print('')
