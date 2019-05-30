@@ -21,17 +21,18 @@ class HistoryCheckpoint(KC.Callback):
     History Checkpoint Class
     """
 
-    def __init__(self, filepath, verbose=0, period=1, targets=None, is_each=True):
+    def __init__(self, filepath, verbose=0, period=1, offset=2, targets=None, is_each=True):
         super(HistoryCheckpoint, self).__init__()
         self.__verbose = verbose
         self.__filepath = filepath
         self.__period = period
         self.__epochs_since_last_save = 0
         self.__history_callback = KC.History()
-        self.__targets = [TargetHistory.Loss]
+        self.__targets = [TargetHistory.Loss, TargetHistory.ValidationLoss]
         if isinstance(targets, list):
             self.__targets = targets
         self.__is_each = is_each
+        self.__offset = offset
 
 
     def on_train_begin(self, logs=None):
@@ -46,11 +47,10 @@ class HistoryCheckpoint(KC.Callback):
         self.__epochs_since_last_save += 1
         if self.__epochs_since_last_save >= self.__period:
             self.__epochs_since_last_save = 0
-            offset = 0
-            x = range(epoch + 1 - offset)
+            x = range(epoch + 1 - self.__offset)
             for target in self.__targets:
                 key = self.get_history_key(target)
-                his = history[key][offset:]
+                his = history[key][self.__offset:]
                 pyplot.plot(x, his, label=key)
                 pyplot.title(key)
                 pyplot.legend(loc='center left', bbox_to_anchor=(1, 0.5))
