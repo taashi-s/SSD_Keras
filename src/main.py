@@ -78,7 +78,7 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
 
     print('data generating ...', end='', flush=True)
     priors = network.get_prior_boxes()
-    bbox_util = BBoxUtility(CLASS_NUM, priors)
+    bbox_util = BBoxUtility(CLASS_NUM, priors=priors, image_shape=INPUT_IMAGE_SHAPE)
 
     train_generator = DataGenerator(DIR_TRAIN_INPUTS, DIR_TRAIN_TEACHERS, bbox_util
                                     , INPUT_IMAGE_SHAPE, with_norm=WITH_NORM)
@@ -130,7 +130,7 @@ def predict(input_dir, gpu_num=None):
     (file_names, inputs) = load_images(input_dir, INPUT_IMAGE_SHAPE, with_normalize=WITH_NORM)
     network = SSD(INPUT_IMAGE_SHAPE, BATCH_SIZE, class_num=CLASS_NUM)
     priors = network.get_prior_boxes()
-    bbox_util = BBoxUtility(CLASS_NUM, priors)
+    bbox_util = BBoxUtility(CLASS_NUM, priors=priors, image_shape=INPUT_IMAGE_SHAPE)
 
     if isinstance(gpu_num, int):
         model = network.get_parallel_model(gpu_num)
