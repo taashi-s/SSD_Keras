@@ -33,7 +33,8 @@ DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
 DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
 
-FILE_MODEL = 'segmentation_model.hdf5'
+FILE_MODEL = 'object_detection_model.hdf5'
+FILE_MODEL_TRAINLOSS_MINIMUN = 'object_detection_model_trainloss_minimun.hdf5'
 
 
 CLASS_LIST = [
@@ -58,16 +59,23 @@ def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
         model = network.get_model(with_compile=True)
 
     model_filename = os.path.join(DIR_MODEL, FILE_MODEL)
+    model_filename_trainloss_min = os.path.join(DIR_MODEL, FILE_MODEL_TRAINLOSS_MINIMUN)
     callbacks = [ KC.TensorBoard()
                 , HistoryCheckpoint(filepath='LearningCurve_{history}.png'
                                     , verbose=1
-                                    , period=10
+                                    , period=5
                                    )
                 , KC.ModelCheckpoint(filepath=model_filename
                                      , verbose=1
                                      , save_weights_only=True
-                                     #, save_best_only=True
-                                     , period=10
+                                     , save_best_only=True
+                                     , period=5
+                                    )
+                , KC.ModelCheckpoint(filepath=model_filename_trainloss_min
+                                     , verbose=1
+                                     , save_weights_only=True
+                                     , save_best_only=False
+                                     , period=5
                                     )
                 ]
 
