@@ -17,16 +17,16 @@ from utils import BBoxUtility
 
 
 CLASS_NUM = 1 + 1 # background + class
-INPUT_IMAGE_SHAPE = (1024, 1024, 3)
-BATCH_SIZE = 16
-EPOCHS = 1000
-GPU_NUM = 4
-WITH_NORM = False
+INPUT_IMAGE_SHAPE = (512, 512, 3)
+BATCH_SIZE = 120
+EPOCHS = 400
+GPU_NUM = 8
+WITH_NORM = True
 
 DIR_BASE = os.path.join('.', '..')
 DIR_MODEL = os.path.join(DIR_BASE, 'model')
-DIR_TRAIN_INPUTS = os.path.join(DIR_BASE, 'inputs')
-DIR_TRAIN_TEACHERS = os.path.join(DIR_BASE, 'teachers')
+DIR_TRAIN_INPUTS = os.path.join(DIR_BASE, 'train_inputs')
+DIR_TRAIN_TEACHERS = os.path.join(DIR_BASE, 'train_teachers')
 DIR_VALID_INPUTS = os.path.join(DIR_BASE, 'valid_inputs')
 DIR_VALID_TEACHERS = os.path.join(DIR_BASE, 'valid_teachers')
 DIR_OUTPUTS = os.path.join(DIR_BASE, 'outputs')
@@ -38,9 +38,9 @@ FILE_MODEL_TRAINLOSS_MINIMUN = 'object_detection_model_trainloss_minimun.hdf5'
 
 
 CLASS_LIST = [
-               'Class_A'
-             , 'Class_B'
-             , 'Class_C'
+               'nest'
+             #, 'Class_B'
+             #, 'Class_C'
              ]
 
 
