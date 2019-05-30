@@ -6,6 +6,7 @@ import math
 import pickle
 import cv2
 import random
+import colorsys
 
 from ssd import SSD
 from images_loader import load_images, save_images
@@ -33,6 +34,14 @@ DIR_TEST = os.path.join(DIR_BASE, 'predict_data')
 DIR_PREDICTS = os.path.join(DIR_BASE, 'predict_data')
 
 FILE_MODEL = 'segmentation_model.hdf5'
+
+
+CLASS_LIST = [
+               'Class_A'
+             , 'Class_B'
+             , 'Class_C'
+             ]
+
 
 
 def train(gpu_num=None, with_generator=False, load_model=False, show_info=True):
@@ -191,6 +200,9 @@ class Pred():
 #def __outputs_to_image_data(images, preds):
 def __outputs_to_image_data(images, preds, filenames):
     # TODO : Refactoring
+
+    colors = random_colors(len(CLASS_LIST))
+
     image_data = []
     for i, img in enumerate(images):
         filename = filenames[i]
@@ -284,13 +296,23 @@ def __outputs_to_image_data(images, preds, filenames):
             c_k = k
             if c_k >= len(col):
                 c_k = c_k - (len(col)) * (c_k // (len(col)))
-            color = (col[c_k], col[::-1][c_k], 0) # colors[label]
+            color = colors[p.label - 1] # colors[label]
             cv2.putText(img, caption, reg_lt, cv2.FONT_HERSHEY_PLAIN, 1, color)
             cv2.rectangle(img, reg_lt, reg_rb, color, 2)
         image_data.append(img)
         #print('$$$$$$$$$$$$$$$$$$$$')
         #print('')
     return image_data
+
+
+def random_colors(N):
+    rgb_colors = []
+    for i in range(N):
+        hsv = i/N, 0.8, 1.0
+        rgb = colorsys.hsv_to_rgb(*hsv)
+        rgb = tuple((int(val * 255) for val in rgb))
+        rgb_colors.append(rgb)
+    return rgb_colors
 
 
 if __name__ == '__main__':
